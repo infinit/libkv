@@ -10,6 +10,8 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"net"
+	"os"
 	"strings"
 	"time"
   )
@@ -17,24 +19,101 @@ import (
 type Settings struct {
 	backend string
 	addresses []string
+	publish  string
 	readers int
 	writers int
 	keys    int
 	payload int
 }
 
+type BenchPoint struct {
+	nr int
+	nw int
+	sequence int
+}
 
-func parse() Settings {
+type BenchData map[string]BenchPoint
+
+type BenchInput struct {
+	host string
+	nr  int
+	nw int
+}
+
+func process(conn net.Conn, bic chan BenchInput) {
+	for {
+		var nr int
+		var nw int
+		var host string
+		_, err := fmt.Fscanf(conn, "%s %d %d\n", &host, &nr, &nw)
+		if err != nil {
+			fmt.Printf("lost client: %v\n", err)
+			return
+		}
+		bic <- BenchInput{host: host, nr: nr, nw: nw}
+	}
+}
+
+func accept(endpoint string, bic chan BenchInput) {
+	ln, err := net.Listen("tcp", endpoint)
+	if err != nil {
+		fmt.Printf("listen: %v\n", err)
+		return
+	}
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+		fmt.Printf("accept: %v\n", err)
+		} else {
+			go process(conn, bic)
+		}
+  }
+}
+
+func serve(endpoint string) {
+	bc := make(chan BenchInput)
+	bench := make(BenchData)
+	go accept(endpoint, bc)
+	for {
+		bi := <-bc
+		prev, ok := bench[bi.host]
+		seq := 1
+		if ok {
+			seq = prev.sequence + 1
+		}
+		bench[bi.host] = BenchPoint{bi.nr, bi.nw, seq}
+		if ok {
+			nrsum := 0
+			nwsum := 0
+			for _, v := range(bench) {
+				if v.sequence < seq {
+					ok = false
+					break
+				}
+				nrsum += v.nr
+				nwsum += v.nw
+			}
+			if ok {
+				fmt.Printf("%v rps  %v wps from %v clients\n", nrsum, nwsum, len(bench))
+			}
+		}
+	}
+}
+
+func parse() (string, Settings) {
+	var server = flag.String("server", "", "bench server mode at given endpoint")
 	var backend = flag.String("backend", "etcd", "backend name")
 	var addresses = flag.String("addresses", "", "addresses to connect to")
+	var publish = flag.String("publish", "", "server to publish benches to")
 	var readers = flag.Int("readers", 1, "number of reader tasks")
 	var writers = flag.Int("writers", 0, "number of writer tasks")
 	var keys    = flag.Int("keys", 10, "number of keys to use")
 	var payload = flag.Int("payload", 10, "size of values")
 	flag.Parse()
-	return Settings {
+	return *server, Settings {
 		backend: *backend,
 		addresses: strings.Split(*addresses, ","),
+		publish: *publish,
 		readers: *readers,
 		writers: *writers,
 		keys: *keys,
@@ -101,8 +180,13 @@ func execute(settings Settings) {
 	for i:=0; i < settings.writers; i++ {
 		go writer(i, stores[i+settings.readers], settings.keys, settings.payload, &n_write)
 	}
+	host, _ := os.Hostname()
+	conn, _ := net.Dial("tcp", settings.publish)
 	for {
 		time.Sleep(10 * time.Second)
+		if settings.publish != "" {
+			fmt.Fprintf(conn, "%v %v %v\n", host, n_read/10, n_write/10)
+		}
 		fmt.Printf("%v rps  %v wps\n", n_read/10, n_write/10)
 		n_read = 0
 		n_write = 0
@@ -114,7 +198,11 @@ func main() {
 	etcd.Register()
 	memo.Register()
 	zookeeper.Register()
-	settings := parse()
-	fmt.Printf("Executing bench with %v\n", settings)
-	execute(settings)
+	server, settings := parse()
+	if server != "" {
+		serve(server)
+	}	else {
+		fmt.Printf("Executing bench with %v\n", settings)
+		execute(settings)
+	}
 }

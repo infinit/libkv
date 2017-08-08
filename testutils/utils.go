@@ -73,9 +73,9 @@ func testPutGetDeleteExists(t *testing.T, kv store.Store) {
 		assert.NoError(t, err, failMsg)
 		if assert.NotNil(t, pair, failMsg) {
 			assert.NotNil(t, pair.Value, failMsg)
+			assert.Equal(t, pair.Value, value, failMsg)
+			assert.NotEqual(t, pair.LastIndex, 0, failMsg)
 		}
-		assert.Equal(t, pair.Value, value, failMsg)
-		assert.NotEqual(t, pair.LastIndex, 0, failMsg)
 
 		// Exists should return true
 		exists, err := kv.Exists(key)

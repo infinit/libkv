@@ -1,9 +1,5 @@
 #! /bin/bash
 
-if ! test -e /usr/bin/strace; then
-  sudo apt-get install strace
-fi
-
 echo 0 |sudo tee /proc/sys/kernel/yama/ptrace_scope
 
 while true; do

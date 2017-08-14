@@ -5,8 +5,7 @@ if ! test -e /usr/bin/strace; then
 fi
 
 while true; do
-  ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg &
-  sleep 2
+  ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg
   if echo stat |nc localhost 2181 |grep -q Mode; then
     break
   fi

@@ -5,12 +5,13 @@ if ! test -e /usr/bin/strace; then
 fi
 
 while true; do
-  strace -f -o /tmp/zk.trace ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg &
+  ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg &
   sleep 2
   if echo stat |nc localhost 2181 |grep -q Mode; then
     break
   fi
   echo zk did not start properly, retrying...
-  cat /tmp/zk.trace
+  lsof -p $(cat /tmp/zookeeper/zookeeper_server.pid)
+  strace -f -p $(cat /tmp/zookeeper/zookeeper_server.pid)
   ./zk/bin/zkServer.sh stop
 done

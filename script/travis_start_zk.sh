@@ -4,6 +4,8 @@ if ! test -e /usr/bin/strace; then
   sudo apt-get install strace
 fi
 
+echo 0 |sudo tee /proc/sys/kernel/yama/ptrace_scope
+
 while true; do
   ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg
   if echo stat |nc localhost 2181 |grep -q Mode; then

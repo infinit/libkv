@@ -8,6 +8,7 @@ echo 0 |sudo tee /proc/sys/kernel/yama/ptrace_scope
 
 while true; do
   ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg
+  sleep 5
   if echo stat |nc localhost 2181 |grep -q Mode; then
     break
   fi
